@@ -174,3 +174,105 @@ try:
 
 except ImportError:
     print("BM25Retriever requires 'pip install PyStemmer'")
+
+# Document Summary Index Retriever
+query = DEMO_QUERIES["learning_types"]
+
+doc_summary_retriever_llm = DocumentSummaryIndexLLMRetriever(
+    lab.document_summary_index, choice_top_k=3
+)
+
+try:
+    nodes_llm = doc_summary_retriever_llm.retrieve(query)
+    for i, node in enumerate(nodes_llm[:2], 1):
+        print(f"{i}. Score: {node.score:.4f}" if hasattr(node, 'score') and node.score else f"{i}. (Document summary)")
+        print(f" Text: {node.text[:80]}...")
+except Exception as e:
+    print(f" Error: {str(e)[:100]}...")
+
+doc_summary_retriever_embedding = DocumentSummaryIndexEmbeddingRetriever(
+    lab.document_summary_index, similarity_top_k=3
+)
+
+try:
+    nodes_emb = doc_summary_retriever_embedding.retrieve(query)
+    for i, node in enu(nodes_emb[:2], 1):
+        print(f"{i}. Score: {node.score:.4f}" if hasattr(node, 'score' and node.score else f"{i}. (Document summary)"))
+        print(f" Text: {node.text[:80]}...")
+except Exception as e:
+    print(f"Error: {str(e)[:100]}...")
+
+# Auto merging retriever
+node_parser = HierarchicalNodeParser.from_defaults(
+    chunk_sizes=[512,256,128]
+)
+
+hier_nodes = node_parser.get_nodes_from_documents(lab.documents)
+
+from llama_index.core import StorageContext
+from llama_index.core.storage.docstore import SimpleDocumentStore
+from llama_index.core.vector_stores import SimpleVectorStore
+
+docstore = SimpleDocumentStore()
+docstore.add_documents(hier_nodes)
+
+storage_context = StorageContext.from_defaults(docstore=docstore)
+
+base_index = VectorStoreIndex(hier_nodes, storage_context=storage_context)
+base_retriever = base_index.as_retriever(similarity_top_k=6)
+
+auto_merging_retriever = AutoMergingRetriever(
+    base_retriever,
+    storage_context,
+    verbose=True
+)
+
+query = DEMO_QUERIES["advanced"]
+nodes = auto_merging_retriever.retrieve(query)
+
+for i, node in enumerate(nodes[:3], 1):
+    print(f"{i}. Score: {node.score:.4f}" if hasattr(node, 'score') and node.score else f"{i}. (Auto-merged)")
+    print(f" Text: {node.text[:120]}...")
+
+# Recursive Retriever
+docs_with_refs = []
+for i, doc in enumerate(lab.documents):
+    ref_doc = Document(
+        text=doc.text,
+        metadata={
+            "doc_id": f"doc_{i}",
+            "references": [f"doc_{j}" for j in range(len(lab.documents)) if j != i][:2]
+        }
+    )
+    docs_with_refs.append(ref_doc)
+
+ref_index = VectorStoreIndex.from_documents(docs_with_refs)
+
+retriever_dict = {
+    f"doc_{i}": ref_index.as_retriever(similarity_top_k=1)
+    for i in range(len(docs_with_refs))
+}
+
+base_retriever = ref_index.as_retriever(similarity_top_k=2)
+
+retriever_dict["vector"] = base_retriever
+
+recursive_retriever = RecursiveRetriever(
+    "vector",
+    retriever_dict=retriever_dict,
+    query_engine_dict={},
+    verbose=True
+)
+
+query = DEMO_QUERIES["applications"]
+try:
+    nodes = recursive_retriever.retrieve(query)
+    for i, node in enumerate(nodes[:3], 1):
+        print(f"{i}. Score: {node.score:.4f}" if hasattr(node, 'score') and node.score else f"{i}. (Recursive)")
+        print(f" Text: {node.text[:100]}...")
+except Exception as e:
+    print(f"Query: {query}")
+    print(f"Recursive retriever demo: {str(e)}")
+    print("Note: Recursive retriever requires specific node reference setup")
+
+# Query Fusion Retriever
