@@ -175,6 +175,63 @@ try:
 except ImportError:
     print("BM25Retriever requires 'pip install PyStemmer'")
 
+# Hybrid Retriver with Vector Similarity with BM25
+vector_retriever = lab.vector_index.as_retriever(similarity_top_k=10)
+bm25_retriever = BM25Retriever.from_defaults(
+    nodes=lab.nodes, similarity_top_k=10
+)
+
+def hybrid_retrieve(query, top_k=5):
+    vector_results = vector_retriever.retrieve(query)
+    bm25_results = bm25_retriever.retrieve(query)
+
+    vector_scores = {}
+    bm25_scores = {}
+    all_nodes = {}
+
+    max_vector_score = max([r.score for r in vector_results]) if vector_results else 1
+    for result in vector_results:
+        text_key = result.text.strip()
+        normalized_score = result.score / max_vector_score
+        vector_scores[text_key] = normalized_score
+        all_nodes[text_key] = result
+
+    max_bm25_score = max([r.score for r in bm25_results]) if bm25_results else 1
+    for result in bm25_results:
+        text_key = result.text.strip()
+        normalized_score = result.score /max_bm25_score
+        bm25_scores[text_key] = normalized_score
+        all_nodes[text_key] = result
+
+    hybrid_results = []
+    for text_key in all_nodes:
+        vector_score = vector_scores.get(text_key, 0)
+        bm25_score = bm25_scores.get(text_key, 0)
+        hybrid_score = 0.7 * vector_score + 0.3 * bm25_score
+
+        hybrid_results.append({
+            'node': all_nodes[text_key],
+            'vector_score': vector_score,
+            'bm25_score': bm25_score,
+            'hybrid_score': hybrid_score
+        })
+
+    hybrid_results.sort(key=lambda x: x['hybrid_score'], reverse=True)
+    return hybrid_results[:top_k]
+
+test_queries = [
+    "What is machine learning?",
+    "neural networks deep learning", 
+    "supervised learning techniques"
+]
+
+for query in test_queries:
+    results = hybrid_retrieve(query, top_k=3)
+    for i, result in enumerate(results, 1):
+        print(f"{i}. Hybrid Score: {result['hybrid_score']:.3f}")
+        print(f" Vector: {result['vector_score']:.3f}, BM25: {result['bm25_score']:.3f}")
+        print(f" Text: {result['node'].text[:80]}...")
+
 # Document Summary Index Retriever
 query = DEMO_QUERIES["learning_types"]
 
@@ -275,4 +332,163 @@ except Exception as e:
     print(f"Recursive retriever demo: {str(e)}")
     print("Note: Recursive retriever requires specific node reference setup")
 
-# Query Fusion Retriever
+# Query Fusion Retriever - Reciprocal Rank Fusion - RRF
+base_retriever = lab.vector_index.as_retriever(similarity_top_k=5)
+query = DEMO_QUERIES["comprehensive"]
+try:
+    rrf_query_fusion = QueryFusionRetriever(
+        [base_retriever],
+        similarity_top_k=3,
+        num_queries=3,
+        mode="reciprocal_rerank",
+        use_async=False,
+        verbose=True
+    )
+
+    nodes = rrf_query_fusion.retrieve(query)
+
+    for i, node in enumerate(nodes, 1):
+        print(f"{i}. Final RRF Score: {node.score:.4f}")
+        print(f" Text: {node.text[:100]}...")
+
+except Exception as e:
+    print(f"Error: {e}")
+
+# Query Fusion Retriever - Relative Score
+base_retriever = lab.vector_index.as_retriever(similarity_top_k=5)
+query = DEMO_QUERIES["comprehensive"]
+
+try:
+    rel_score_fusion = QueryFusionRetriever(
+        [base_retriever],
+        similarity_top_k=3,
+        num_queries=3,
+        mode="relative_score",
+        use_async=False,
+        verbose=False
+    )
+    nodes = rel_score_fusion.retrieve(query)
+
+    for i, node in enumerate(nodes, 1):
+        print(f"{i}. Combined Relative Score: {node.score:.4f}")
+        print(f" Text: {node.text[:100]}...")
+
+except Exception as e:
+    print(f"Error: {e}")
+
+# Query Fusion Retriever - Distribution Based
+base_retriever = lab.vector_index.as_retriever(similarity_top_k=8)
+query = DEMO_QUERIES["comprehensive"]
+
+try:
+    dis_fusion = QueryFusionRetriever(
+        [base_index],
+        similarity_top_k=3,
+        num_queries=3,
+        mode="dist_based_score",
+        use_async=False,
+        verbose=False
+    )
+    nodes = dis_fusion.retrieve(query)
+
+    for i, node in enumerate(nodes, 1):
+        print(f"{i}. Statistically Normalized Score: {node.score:.4f}")
+        print(f" Text: {node.text[:100]}...")
+
+except Exception as e:
+    print(f"Error: {e}")
+
+# Production RAG Pipeline
+class ProductionRAGPipeline:
+    def __init__(self, index, llm):
+        self.index = index
+        self.llm = llm
+        self.vector_retriever = index.as_retriever(similarity_top_k=5)
+
+    def _route_query(self, question):
+        if any(word in question.lower() for word in ["what", "explain", "describe"]):
+            return "semantic"
+        elif any(word in question.lower() for word in ["list", "types", "examples"]):
+            return "comprehensive"
+        else:
+            return "semantic"
+        
+    def query(self, question, strategy="auto"):
+        try:
+            if strategy == "auto":
+                strategy = self._route_query(question)
+            if strategy == "semantic":
+                retriever = self.vector_retriever
+                top_k = 3
+            elif strategy == "comprehensive":
+                retriever = self.vector_retriever
+                top_k = 5
+            else:
+                retriever = self.vector_retriever
+                top_k = 3
+
+            relevant_docs = retriever.retrieve(question)
+            context = "\n\n".join([doc.text for doc in relevant_docs[:top_k]])
+            prompt = f"""Based on the following context, please answer the question:
+Context:
+{context}
+
+Question: {question}
+
+Answer:"""
+        
+            try:
+                response = self.llm.complete(prompt)
+                return {
+                    "answer": response.text,
+                    "strategy": strategy,
+                    "num_docs": len(relevant_docs),
+                    "status": "success"
+                }
+            except Exception as e:
+                return {
+                    "answer": f"Based on the retrieved documents: {context[:200]}...",
+                    "strategy": strategy,
+                    "num_docs": len(relevant_docs),
+                    "status": f"llm_error: {str(e)}"
+                }
+        except Exception as e:
+            return {
+                "answer": "I encountered an error processing your question.",
+                "strategy": strategy,
+                "num_docs": 0,
+                "status": f"error: {str(e)}"
+            }
+        
+    def evalueate(self, test_queries):
+        results = []
+        for query in test_queries:
+            result = self.query(query)
+            results.append({
+                "query": query,
+                "result": result,
+                "success": result["status"] == "success"
+            })
+        success_rate = sum(1 for r in results if r["success"]) / len(results)
+        return {
+            "success_rate": success_rate,
+            "results": results
+        }
+    
+pipeline = ProductionRAGPipeline(lab.vector_index, llm)
+
+test_queries = [
+    "What is machine learning?",
+    "List different types of learning algorithms",
+    "Explain neural networks"
+]
+
+for query in test_queries:
+    result = pipeline.query(query)
+    print(f"\nQuery: {query}")
+    print(f"Strategy: {result['strategy']}")
+    print(f"Status: {result['status']}")
+    print(f"Answer: {result['answer'][:100]}...")
+
+evaluation = pipeline.evalueate(test_queries)
+print(f"\nPipeline Success Rate: {evaluation['success_rate']:.2%}")
