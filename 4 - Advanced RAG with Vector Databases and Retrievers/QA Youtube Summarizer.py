@@ -149,3 +149,74 @@ def create_qa_prompt_template():
     )
 
     return prompt_template
+
+def create_qa_chain(llm, prompt_template, verbose=True):
+    return LLMChain(llm=llm, prompt=prompt_template, verbose=verbose)
+
+def generate_answer(question, faiss_index, qa_chain, k=7):
+    relevant_context = retrieve(question, faiss_index, k=k)
+    answer = qa_chain.predict(context=relevant_context, question=question)
+
+processed_transcript = ""
+
+def summarize_video(video_url):
+    global fetched_transcript, processed_transcript
+
+    if video_url:
+        fetched_transcript = get_transcript(video_url)
+        processed_transcript = process(fetched_transcript)
+    else:
+        return "Please provide a valid YouTube URL."
+    
+    if processed_transcript:
+        model_id, credentials, client, project_id = setup_credentials()
+
+        llm = initialize_watsonx_llm(model_id, credentials, project_id, define_parameters())
+
+        summary_prompt = create_summary_prompt()
+        summary_chain = create_summary_chain(llm, summary_prompt)
+
+        summary = summary_chain.run({"transcript": processed_transcript})
+        return summary
+    else:
+        return "No transcript available. Please fetch the transcript first."
+    
+def answer_question(video_url, user_question):
+    global fetched_transcript, processed_transcript
+
+    if not processed_transcript:
+        if video_url:
+            fetched_transcript = get_transcript(video_url)
+            processed_transcript = process(fetched_transcript)
+        else:
+            return "Please provide a valid YouTube URL."
+        
+    if processed_transcript and user_question:
+        chunks = chunk_transcript(processed_transcript)
+        model_id, credentials, client, project_id = setup_credentials()
+        llm = initialize_watsonx_llm(model_id, credentials, project_id, define_parameters())
+        embedding_model = setup_embedding_model(credentials, project_id)
+        faiss_index = create_faiss_index(chunks, embedding_model)
+        qa_prompt = create_qa_prompt_template()
+        qa_chain = create_qa_chain(llm, qa_prompt)
+
+        answer = generate_answer(user_question, faiss_index, qa_chain)
+        return answer
+    else:
+        return "Please provide a valid question and ensure the transcript has been fetched."
+    
+with gr.Blocks() as interface:
+    video_url = gq.Textbox(label="Youtube video url", placeholder="Enter the youtube video url")
+    summary_output = gr.Textbox(label="Video summary", lines=5)
+    question_input = gq.Textbox(label="Ask a question about the video", placeholder="Ask your question")
+    answer_output = gr.Textbox(label="Answer to your question", lines=5)
+
+    summarize_btn = gr.Button("Summarize video")
+    question_btn = gr.Button("Ask a question")
+
+    transcript_status = gr.Textbox(label="Transcript Status", interactive=False)
+
+    summarize_btn.click(summarize_video, inputs=video_url, outputs=summary_output)
+    question_btn.click(answer_question, inputs=[video_url, question_input], outputs=answer_output)
+
+interface.launch(server_name="0.0.0.0", server_port=7860)
