@@ -206,9 +206,9 @@ def answer_question(video_url, user_question):
         return "Please provide a valid question and ensure the transcript has been fetched."
     
 with gr.Blocks() as interface:
-    video_url = gq.Textbox(label="Youtube video url", placeholder="Enter the youtube video url")
+    video_url = gr.Textbox(label="Youtube video url", placeholder="Enter the youtube video url")
     summary_output = gr.Textbox(label="Video summary", lines=5)
-    question_input = gq.Textbox(label="Ask a question about the video", placeholder="Ask your question")
+    question_input = gr.Textbox(label="Ask a question about the video", placeholder="Ask your question")
     answer_output = gr.Textbox(label="Answer to your question", lines=5)
 
     summarize_btn = gr.Button("Summarize video")
