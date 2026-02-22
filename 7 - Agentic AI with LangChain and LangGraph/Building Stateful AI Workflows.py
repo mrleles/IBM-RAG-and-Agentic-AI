@@ -44,3 +44,24 @@ def router(state):
 # Creating the Graph
 from langgraph.graph import END
 
+workflow = StateGraph(AuthState)
+
+workflow.add_node("InputNode", input_node)
+workflow.add_node("ValidateCredential", validate_credentials_node)
+workflow.add_node("Success", success_node)
+workflow.add_node("Failure", failure_node)
+
+# Defining edges
+workflow.add_edge("InputNode", "ValidateCredential")
+workflow.add_edge("Success", END)
+workflow.add_edge("Failure", "InputNode")
+
+# Conditional Edge
+workflow.add_conditional_edges("ValidateCredential", router, {"success_node": "Success", "failure_node": "Failure"})
+
+workflow.set_entry_point("InputNode")
+
+app = workflow.compile()
+
+inputs = {"username": "test_user"}
+result = app.invoke(inputs)
