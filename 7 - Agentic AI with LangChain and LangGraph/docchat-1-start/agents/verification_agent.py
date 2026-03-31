@@ -39,4 +39,41 @@ class VerificationAgent:
         """
         prompt = f"""
         you are an AI assistant designed to verify the accuracy and relevance of answers based on the provided context.
-        
+
+        **Instruction:**
+        - Verify the following answer against the provided context.
+        - Check for:
+        1. Direct/indirect factual support (YES/NO)
+        2. unsupported claims (list any if present)
+        3. Contradictions (list any if present)
+        4. Relevance to the question (YES/NO)
+        - Provide additional details or explanations where relevant.
+        - Respond in the exact format specified below without adding any unrelated information.
+
+        **Format:**
+        Supported: YES/NO
+        Unsupported Claims: [item1, item2, ...]
+        Contradictions: [item1, item2, ...]
+        Relevant: YES/NO
+        Additional Details: [Any extra information or explanations]
+
+        **Respond ONLY with the above format.**
+        """
+        return prompt
+
+    def parse_verification_response(self, response_text: str) -> Dict:
+        """
+        parse the LLM' verification response into a structured dictionary.
+        """
+        try:
+            lines = response_text.split('\n')
+            verification = {}
+            for line in lines:
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip().capitalize()
+                    value = value.strip()
+                    if key in {"Supported", "Unsupported claims", "Contradictions", "Relevant", "Additional details"}:
+                        if key in {"Unsupported claims", "Contradictions"}:
+                            if value.startswith('[') and value.endswith(']'):
+                                items = value[1:-1].split(',')
