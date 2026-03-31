@@ -75,3 +75,25 @@ class RelevanceChecker:
             )
         except Exception as e:
             logger.error(f"Error during model inference: {e}")
+            return "NO_MATCH"
+
+        # Extract the content from the response
+        try:
+            llm_response = response['choices'][0]['message']['content'].strip().upper()
+            logger.debug(f"LLM response: {llm_response}")
+        except (IndexError, KeyError) as e:
+            logger.error(f"Unexpected response structure: {e}")
+            return "NO_MATCH"
+
+        print(f"Checker response: {llm_response}")
+
+        # Validate the response
+        valid_labels = {"CAN_ANSWER", "PARTIAL", "NO_MATCH"}
+        if llm_response not in valid_labels:
+            logger.debug("LLM did not respond with a valid label. Forcing 'NO_MATCH'.")
+            classification = "NO_MATCH"
+        else:
+            logger.debug(f"Classification recognized as '{llm_response}'.")
+            classification = llm_response
+
+        return classification
