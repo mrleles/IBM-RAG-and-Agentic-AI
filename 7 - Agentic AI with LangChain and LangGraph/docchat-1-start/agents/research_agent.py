@@ -50,4 +50,50 @@ class ResearchAgent:
         """
         return prompt
 
-    
+    def generate(self, question: str, documents: List[Document]) -> Dict:
+        """
+        Generate an initial answer using the provided documents.
+        """
+        print(f"ResearchAgent.generate called with question='{question}' and {len(documents)} documents.")
+
+        # Combine the top document contents into one string
+        context = "\n\n".join([doc.page_content for doc in documents])
+        print(f"Combined context length: {len(context)} characters.")
+
+        # Create a prompt for the LLM
+        prompt = self.generate_prompt(question, context)
+        print("prompt created for the LLM.")
+
+        # Call the LLM to generate the answer
+        try:
+            print("Sending prompt to the model...")
+            response = self.model.chat(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+            print("LLM response received.")
+        except Exception as e:
+            print(f"Error during model inference: {e}")
+            raise RuntimeError("Failed to generate answer due to a model error.") from e
+
+        # Extract and process the LLM's response
+        try:
+            llm_response = response['choices'][0]['message']['content'].strip()
+            print(f"Raw LLM response:\n{llm_response}")
+        except (IndexError, KeyError) as e:
+            print(f"Unexpected response structure: {e}")
+            llm_response = "i cannot answer this question based on the provided documents."
+
+        # Satinize he response
+        draft_answer = self.sanitize_response(llm_response) if llm_response else "i cannot answer this question based on the provided documents."
+
+        print(f"Generated answer: {draft_answer}")
+
+        return {
+            "draft_answer": draft_answer,
+            "context_used": context
+        }
