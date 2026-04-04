@@ -118,6 +118,85 @@ def main():
                 verification_output = gr.Textbox(label="Verification Report")
 
         # 4) Helper function to load example into the UI
+        def load_example(example_key: str):
+            """
+            Given a key like 'Example 1',
+            read the relevant docs from disk and return
+            them as file-like objects, plus the example question.
+            """
+            if not example_key or example_key not in EXAMPLES:
+                return [], ""
+            
+            ex_data = EXAMPLES[example_key]
+            question = ex_data["question"]
+            file_paths = ex_data["file_paths"]
+
+            # Prepare the file list to return. We read them from disk to give Gradio something it can handle as "uploaded" files.
+            loaded_files = []
+
+            for path in file_paths:
+                if os.path.exists(path):
+                    # Gradio can accept a path directly, or a file-like object
+                    loaded_files.append(path)
+                else:
+                    logger.warning(f"File not found: {path}")
+
+            # The function can return lists matching the outputs we define below
+            return loaded_files, question
+        
+        load_example_btn.click(
+            fn=load_example,
+            inputs=[example_dropdown],
+            outputs=[files, question]
+        )
+
+        # 5) Standard flow for question submission
+        def process_question(question_text: str, uploaded_files: List, state: Dict):
+            """Handle questions with document caching."""
+            try:
+                if not question_text.strip():
+                    raise ValueError("Question cannot be empty")
+                if not uploaded_files:
+                    raise ValueError("No documents uploaded")
+                
+                current_hashes = _get_file_hashes(uploaded_files)
+
+                if state["retriever"] is None or current_hashes != state["file_hashes"]:
+                    logger.info("Processing new/changed documents...")
+                    chunks = processor.process(uploaded_files)
+                    retriever = retriever_builder.build_hybrid_retriever(chunks)
+
+                    state.update({
+                        "file_hashes": current_hashes,
+                        "retriever": retriever
+                    })
+
+                result = workflow.full_pipeline(
+                    question=question_text,
+                    retriever=state["retriever"]
+                )
+
+                return result["draft_answer"], result["verification_report"], state
+            
+            except Exception as e:
+                logger.error(f"Processing error: {str(e)}")
+                return f"Error {str(e)}", "", state
+            
+        submit_btn.click(
+            fn=process_question,
+            inputs=[question, files, session_state],
+            outputs=[answer_output, verification_output, session_state]
+        )
+
+        demo.launch(server_name="127.0.0.1", server_port=5000, share=True)
+
+    def _get_file_hashes(uploaded_files: List) -> frozenset:
+        """Generate SHA-256 hashes for uploaded files."""
+        hashes = set()
+        for file in uploaded_files:
+            with open(file.name, "rb") as f:
+                hashes.add(hashlib.sha256(f.read()).hexdigest())
+        return frozenset(hashes)
 
 if __name__ == "__main__":
     main()
