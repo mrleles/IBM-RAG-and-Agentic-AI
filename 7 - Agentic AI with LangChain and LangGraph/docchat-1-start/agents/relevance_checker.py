@@ -14,7 +14,7 @@ client = APIClient(credentials)
 class RelevanceChecker:
     def __init__(self):
         self.model = ModelInference(
-            model_id="ibm/granite-3-3-8b-instruct",
+            model_id="ibm/granite-8b-code-instruct",
             credentials=credentials,
             project_id="skills-network",
             params={"temperature"0, "max_token": 10}

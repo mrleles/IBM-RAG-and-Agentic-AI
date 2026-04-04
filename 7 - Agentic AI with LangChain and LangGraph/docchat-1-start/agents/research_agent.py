@@ -14,7 +14,7 @@ client = APIClient(credentials)
 class ResearchAgent:
     def __init__(self):
         self.model = ModelInference(
-            model_id="meta-llama/llama-3-2-90b-vision-instruction",
+            model_id="meta-llama/llama-3-3-70b-instruct",
             credentials=credentials,
             project_id="skills-network",
             params={
