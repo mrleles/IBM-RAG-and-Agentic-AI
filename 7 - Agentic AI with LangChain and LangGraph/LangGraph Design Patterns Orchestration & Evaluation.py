@@ -84,3 +84,60 @@ def orchestrator(state: State):
     """Orchestrator that generates a structured dish list from the given meals."""
     dish_descriptions = planner_pipe.invoke({"meals": state["meals"]})
     return {"sections": dish_descriptions}
+
+chef_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "You are a world-class chef from {location}.\n\n"
+        "please introduce yourself briefly and present a detailed walkthrough for preparing the dish: {name}.\n"
+        "your response should include:\n"
+        "- Start with hello, with your name and culinary background\n"
+        "- A clear list of preparation steps\n"
+        "- A full explanation of the cooking process\n\n"
+        "Use the following ingredients: {ingredients}."
+    )
+])
+
+chef_pipe = chef_prompt | llm
+
+class WorkerState(TypedDict):
+    section: Dish
+    completed_menu: Annotated[list, operator.add]
+
+def assign_workers(state: State):
+    """Assign a worker to each section in the plan"""
+
+    # Kick off section writing in parallel via Send() API
+    return [Send("chef_worker", {"section": s}) for s in state["sections"]]
+
+def chef_worker(state: WorkerState):
+    """Worker node that generates the cooking instructions for one meal section."""
+    meal_plan = chef_pipe.invoke({
+        "name": state["section"].name,
+        "location": state["section"].location,
+        "ingredients": state["section"].ingredients,
+    })
+
+    return {"completed_menu": [meal_plan.content]}
+
+dummy_dishes: List[Dish] = dummy_state["sections"]
+
+for section in dummy_dishes:
+    worker_state: WorkerState = {
+        "section": section,
+        "recipe": []
+    }
+    result = chef_worker(worker_state)
+    dummy_state["completed_menu"] += result["completed_menu"]
+
+completed_menu_sections = "\n".join(dummy_state["completed_menu"])
+print(completed_menu_sections[:1000])
+
+def synthesizer(state: State):
+    """Synthesize full report from sections"""
+    completed_sections = state["completed_menu"]
+    completed_menu = "\n\n---\n\n".join(completed_sections)
+    return {"final_meal_guide": completed_menu}
+
+# Building the Workflow (Orchestration)
+
