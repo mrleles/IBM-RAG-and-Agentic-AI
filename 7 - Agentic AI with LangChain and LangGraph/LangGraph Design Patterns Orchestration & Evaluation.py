@@ -141,3 +141,90 @@ def synthesizer(state: State):
 
 # Building the Workflow (Orchestration)
 
+orchestrator_worker_builder = StateGraph(State)
+
+orchestrator_worker_builder.add_node("orchestrator", orchestrator)
+orchestrator_worker_builder.add_node("synthesizer", synthesizer)
+orchestrator_worker_builder.add_node("chef_worker", chef_worker)
+
+orchestrator_worker_builder.add_conditional_edges(
+    "orchestrator", assign_workers, ["chef_worker"]
+)
+
+orchestrator_worker_builder.add_edge(START, "orchestrator")
+orchestrator_worker_builder.add_edge("chef_worker", "synthesizer")
+orchestrator_worker_builder.add_edge("synthesizer", END)
+
+orchestrator_worker = orchestrator_worker_builder.compile()
+
+# Visualization
+
+display(Image(orchestrator_worker.get_graph().draw_mermaid_png()))
+
+# Testing (Orchestration)
+state = orchestrator_worker.invoke({"meals": "Steak and eggs, tacos, and chili"})
+pprint(state["final_meal_guide"][:2000])
+
+# Reflection Pattern
+
+grades = Literal[
+    "ultra-conservative",
+    "conservative",
+    "moderate",
+    "aggressive",
+    "high risk"
+]
+
+class State(TypedDict):
+    investment_plan: str
+    investor_profile: str
+    target_grade: grades
+    feedback: str
+    grade: grades
+    n: int = 0
+
+grade_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "You are an investment advisor. Given the investor's profile and their proposed plan,"
+        "choose exactly one risk classification from: ultra-conservative, conservative, moderate, aggresive, high risk."
+        "Return ONLY the grade."
+    ),
+    (
+        "user",
+        "Investor profile:\n\n{investor_profile}\n\n"
+    )
+])
+
+grade_pipe = grade_prompt | llm
+
+def determine_target_grade(state: State):
+    """Ask the LLM to pick the best-fitting target_grade."""
+    response = grade_pipe.invoke({
+        "investor_profile": state["investor_profile"]
+    })
+
+    return {"target_grade": response.content.lower()}
+
+# initialize empty state except for the user inputted investor profile
+dummy_state: State = {
+    "investment_plan": "",
+    "investor_profile": (
+        "Age: 29\n"
+        "Salary: $110,000\n"
+        "Assets: $40,000\n"
+        "Goal: Achieve financial independence by age 45\n"
+        "Risk tolerance: High"
+    ),
+    "target_grade": "",
+    "feedback": "",
+    "grade": "",
+    "n": 0
+}
+
+target_grade = determine_target_grade(dummy_state)
+dummy_state.update(target_grade)
+pprint(dummy_state)
+
+# Generator Node
+
