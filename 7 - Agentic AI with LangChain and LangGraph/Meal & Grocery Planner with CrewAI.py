@@ -142,3 +142,133 @@ shopping_task = Task(
     output_file="shopping_list.json"
 )
 
+two_agent_grocery_crew = Crew(
+    agents=[meal_planner, shopping_organizer],
+    tasks=[meal_planning_task, shopping_task],
+    process=Process.sequential,
+    verbose=True
+)
+
+shopping_result = two_agent_grocery_crew.kickoff(
+    inputs={
+        "meal_name": "Chicken Stir Fry",
+        "servings": 4,
+        "budget": "$25",                           
+        "dietary_restrictions": ["no nuts"],      
+        "cooking_skill": "beginner"               
+    }
+)
+
+# Print the shopping results
+print("✅ Complete meal planning + shopping completed!")
+print("📋 Shopping Results:")
+print(shopping_result)
+
+budget_advisor = Agent(
+    role="Budget Advisor",
+    goal="provide cost estimates and money-saving tips",
+    backstory="A budget-conscious shopper who helps families save money on groceries while respecting dietary needs.",
+    tools=[SerperDevTool()],
+    llm=llm,
+    verbose=False
+)
+
+budget_task = Task(
+    description=(
+        "Analyze the shopping plan for '{meal_name}' serving {servings} people. "
+        "Ensure total cost stays within {budget}. Consider dietary restrictions: {dietary_restrictions}. "
+        "Provide practical money-saving tips and alternative ingredients if needed to meet budget."
+    ),
+    expected_output="A complete shooping guide wih detailed prices, budget analysis, and money-saving tips.",
+    agent=budget_advisor,
+    context=[meal_planning_task, shopping_task],
+    output_file="shopping_guide.md"
+)
+
+# leftovers.py
+from crewai import Agent, Task
+from crewai.project import CrewBase
+from crewai.project.annotations import agent, task
+
+@CrewBase
+class LeftoversCrew:
+    def __init__(self, llm):
+        self.llm = llm
+
+    @agent
+    def leftover_manager(self) -> Agent:
+        return Agent(
+            config=self.agents_config["leftover_manager"],
+            llm=self.llm,
+            verbose=True
+        )
+
+    @task
+    def leftover_task(self) -> Task:
+        return Task(
+            config=self.tasks_config["leftover_task"],
+            agent=self.leftover_manager()
+        )
+
+from leftover import LeftoversCrew
+
+leftovers_cb = LeftoversCrew(llm=llm)
+yaml_leftover_manager = leftovers_cb.leftover_manager()
+yaml_leftover_task = leftovers_cb.leftover_task()
+
+summary_agent = Agent(
+    role="Report Compiler",
+    goal="Compile comprehensive meal planning reports from all team outputs",
+    backstory="A skilled coordinator who organizes information from multiple specialist into comprehensive, easy-to-follow reports.",
+    tools=[],
+    llm=llm,
+    verbose=False
+)
+
+summary_task = Task(
+    description=(
+        "Compile a comprehensive meal planning report that includes:\n"
+        "1. The complete recipe and cooking instructions from the meal planner\n"
+        "2. The organized shopping list with prices from the shopping organizer\n"
+        "3. The budget analysis and money-saving tips from the budget advisor\n"
+        "4. The leftover management suggestions from the waste reduction specialist\n"
+        "Format this as a complete, user-friendly meal planning guide."
+    ),
+    expected_output="A comprehensive meal planning guide that combiles all team outputs into one cohesive report.",
+    agent=summary_agent,
+    context=[meal_planning_task, shopping_task, budget_task, yaml_leftover_task],
+)
+
+complete_grocery_crew = Crew(
+    agents=[
+        meal_planner,
+        shopping_organizer,
+        budget_advisor,
+        yaml_leftover_manager,
+        summary_agent
+    ],
+    tasks=[
+        meal_planning_task,
+        shopping_task,
+        budget_task,
+        yaml_leftover_task,
+        summary_task
+    ],
+    process=Process.sequential,
+    verbose=True
+)
+
+# Run the complete crew
+complete_result = complete_grocery_crew.kickoff(
+    inputs={
+        "meal_name": "Chicken Stir Fry",
+        "servings": 4,
+        "budget": "$25",
+        "dietary_restrictions": ["no nuts", "low sodium"],
+        "cooking_skill": "beginner"
+    }
+)
+
+print("✅ Complete meal planning with summary completed!")
+print("📋 Complete Results:")
+print(complete_result)
