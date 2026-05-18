@@ -84,3 +84,103 @@ while True:
     except Exception as e:
         print(f"An error occurred: {e}")
 
+task_centric_agent = Agent(
+    role="Customer Service Specialist",
+    goal="Provide exceptional customer service by following a multi-step process to answer customer questions accurately.",
+    backstory="""You are an AI assistant for 'The Daily Dish'.
+    You are an expert at following instructions. You will be given a sequence of tasks to complete.
+    For each task, you will be provided with the specific tool needed to accomplish it.
+    Your job is to execute each task diligently and pass the results to the next step.""",
+    tools=[],
+    verbose=True,
+    allow_deletation=False,
+    llm=llm
+)
+
+faq_search_task = Task(
+    description="Search the restaurant's FAQ PDF for information relate to the customer's query: '{customer_query}'.",
+    expected_output="A snippet of the most relevant information from the PDF, or a statement that the information was not found.",
+    tools=[pdf_search_tool],
+    agent=task_centric_agent
+)
+
+response_drafting_task = Task(
+    description="Using the information gathered from the FAQ search, draft a friendly and comprehensive response to the customer's query: '{customer_query}'",
+    expected_output="The final, customer-facing response.",
+    agent=task_centric_agent,
+    context=[faq_search_task]
+)
+
+task_centric_crew = Crew(
+    agents=[task_centric_agent],
+    tasks=[faq_search_task, response_drafting_task],
+    process=Process.sequential,
+    verbose=True
+)
+
+print("\nWelcome to The Daily Dish Chatbot!")
+print("What would you like to know? (Type 'exit' to quit)")
+
+while True:
+    user_input = input("\nYour question: ").lower()
+    if user_input == 'exit':
+        print("Thank you for chatting. Have a great day!")
+        break
+
+    if not user_input:
+        print("Please type a question.")
+        continue
+
+    try:
+        result_task_centric = task_centric_crew.kickoff(inputs={'customer_query': user_input})
+        print("\n--- The Daily Dish Assistant ---")
+        print(result_task_centric)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+from crewai.tools import tool
+import re
+
+@tool("Add Two Numbers Tool")
+def add_numbers(data: str) -> int:
+    """
+    Extracts and adds integers from the input string.
+    Example input: 'add 1 and 2' or '[1,2,3,4]'
+    Output: sum of the numbers
+    """
+    numbers = list(map(int, re.findall(r'-?\d+', data)))
+    return sum(numbers)
+
+from functools import reduce
+@tool("Multiply Numbers Tool")
+def multiply_numbers(data: str) -> int:
+    """
+    Extracts and multiplies integers from the input string.
+    Example input: 'multiply 2 and 3' or '[2,3,4]'
+    Output: the product of all numbers found
+    """
+    numbers = list(maps(int, re.findall(r'-?\d+', data)))
+    return reduce(lambda x, y: x * y, numbers, 1)
+
+calculator_agent = Agent(
+    role="Calculator",
+    goal="Extracts, add, or multiplies numbers when asked, using the Add Two Numbers and Multiply Numbers tools.",
+    backstory="An expert at parsing numeric instructions and computing sums or products.",
+    tools=[add_numbers, multiply_numbers],
+    llm=llm,
+    allow_delegation=False
+)
+
+calculation_task = Task(
+    description="Extract numbers from '{numbers} and either add or multiply them, depending on the natural-language instruction.",
+    expected_output="An integer result (sum or product) based on the user's request.",
+    agent=calculator_agent
+)
+
+crew = Crew(
+    agents=[calculator_agent],
+    tasks=[calculation_task],
+)
+
+result = crew.kickoff(inputs={'numbers': 'please add 4, 5, and 6'})
+print("Sum result:", result)
