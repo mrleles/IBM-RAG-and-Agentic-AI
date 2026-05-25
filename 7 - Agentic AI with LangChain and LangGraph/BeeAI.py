@@ -255,3 +255,129 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# t7
+
+import asyncio
+import logging
+from beeai_framework.agents.experimental import RequirementAgent
+from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
+from beeai_framework.memory import UnconstrainedMemory
+from beeai_framework.backend import ChatModel, ChatModelParameters
+from beeai_framework.tools.think import ThinkTool
+from beeai_framework.tools.search.wikipedia import WikipediaTool
+from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
+from beeai_framework.tools import Tool
+
+async def reasoning_enhanced_agent_example():
+    """
+    RequirementAgent with Systematic Reasoning - ThinkTool + WikipediaTool
+
+    Adding ThinkTool enables structured reasoning alongside research.
+    Same query, same tracking - now with visible thinking process.
+    """
+    llm = ChatModel.from_name("watsonx:meta-llama/llama-4-maverick-17b-128e-instruct-fp8", ChatModelParameters(temperature=0))
+
+    SYSTEM_INSTRUCTIONS = """You are an expert cybersecurity analyst specializing in threat assessment and risk analysis.
+
+    Your methodology:
+    1. Analyze the threat landscape systematically
+    2. Research authoritative sources when available
+    3. Provide comprehensive risk assessment with actionable recommendations
+    4. Focus on practical, implementable security measures"""
+
+    reasoning_agent = RequirementAgent(
+        llm=llm,
+        tools=[ThinkTool(), WikipediaTool()],
+        memory=UnconstrainedMemory(),
+        instructions=SYSTEM_INSTRUCTIONS,
+        middlewares=[GlobalTrajectoryMiddleware(included=[Tool])],
+        requirements=[
+            ConditionalRequirement(ThinkTool, max_invocations=2),
+            ConditionalRequirement(WikipediaTool, max_invocations=2)
+            ]
+        )
+
+    ANALYSIS_QUERY = """Analyze the cybersecurity risks of quantum computing for financial institutions.
+    What are the main threats, timeline for concern, and recommended preparation strategies?"""
+
+    result = await reasoning_agent.run(ANALYSIS_QUERY)
+    print(f"\n Reasoning + Research Analysis:\n{result.answer.text}")
+
+async def main() -> None:
+    logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+    await reasoning_enhanced_agent_example()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+# t8
+
+import asyncio
+import logging
+from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
+from beeai_framework.agents.experimental import RequirementAgent
+from beeai_framework.memory import UnconstrainedMemory
+from beeai_framework.backend import ChatModel, ChatModelParameters
+from beeai_framework.tools.think import ThinkTool
+from beeai_framework.tools.search.wikipedia import WikipediaTool
+from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
+from beeai_framework.tools import Tool
+
+async def controlled_execution_example():
+    """
+    RequirementAgent with Controlled Execution - Requirements System
+
+    Requirements provide precise controle over tool execution order and behavior.
+    Same query, same tracking - but now with strict execution rules.
+    """
+    llm = ChatModel.from_name("watsonx:meta-llama/llama-4-maverick-17b-128e-instruct-fp8", ChatModelParameters(temperature=0))
+
+    SYSTEM_INSTRUCTIONS = """You are an expert cybersecurity analyst specializing in threat assessment and risk analysis.
+
+    Your methodology:
+    1. Analyze the threat landscape systematically
+    2. Research authoritative sources when available
+    3. Provide comprehensive risk assessment with actionable recommendations
+     Focus on practical, implementable security measures"""
+
+    controlled_agent = RequirementAgent(
+        llm=llm,
+        tools=[ThinkTool(), WikipediaTool()],
+        memory=UnconstrainedMemory(),
+        instructions=SYSTEM_INSTRUCTIONS,
+        middlewares=[GlobalTrajectoryMiddleware(included=[Tool])],
+
+        requirements=[
+            ConditionalRequirement(
+                ThinkTool,
+                force_at_step=1,
+                min_invocations=1,
+                max_invocations=3,
+                consecutive_allowed=False
+            ),
+            ConditionalRequirement(
+                WikipediaTool,
+                only_after=[ThinkTool],
+                min_invocations=1,
+                max_invocations=2
+            )
+        ]
+    )
+
+
+    ANALYSIS_QUERY = """Analyze the cybersecurity risks of quantum computing for financial institutions.
+    What are the main threats, timeline for concern, and recommended preparation strategies?"""
+
+    result = await controlled_agent.run(ANALYSIS_QUERY)
+    print(f"\n Controlled Execution Analysis:\n{result.answer.text}")
+
+async def main() -> None:
+    logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+    await controlled_execution_example()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+# t9
+
