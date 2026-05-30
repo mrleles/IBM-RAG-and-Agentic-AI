@@ -523,4 +523,28 @@ class CalculatorInput(BaseModel):
     expression: str = Field(description="Mathematical expression using +, -, *, / (e.g., '10 + 5', '20-8', '4*6', '15/3')")
 
 class SimpleCalculatorTool(Tool[CalculatorInput, ToolRunOptions, StringToolOutput]):
-    
+    """A simple calculator tool for basic arithmetic operations: add, subtract, multiply, divide."""
+    name = "SimpleCalculator"
+    description = "Performs basirc arithmetic calculations: addition (+), subtraction (-), multiplication (*), and division (/)."
+    input_schema = CalculatorInput
+
+    def __init__(self, options: dict[str, Any] | None = None) -> None:
+        super().__init__(options)
+
+    def _create_emitter(self) -> Emitter:
+        return Emitter.root().child(
+            namespace=["tool", "calculator", "basic"],
+            creator=self,
+        )
+
+    def _safe_calculate(self, expression: str) -> float:
+        """Safely evaluate basic arithmetic expressions."""
+        # Remove spaces for processing
+        expr = expression.replace(' ', '')
+
+        allowed_chars = set('0123456789+-*/().')
+        if not all(c in allowed_chars for c in expr):
+            raise ValueError("Only numbers and basic operators (+, -, *, /, parentheses) are allowed")
+
+        try:
+            result = eval(expr, {})
