@@ -503,3 +503,24 @@ async def main() -> None:
 
 if __main__ == "__main__":
     asyncio.run(main())
+
+# t11
+
+import asyncio
+import logging
+from beeai_framework.agents.experimental import RequirementAgent
+from beeai_framework.memory import UnconstrainedMemory
+from beeai_framework.tools import StringToolOutput, Tool, ToolRunOptions
+from beeai_framework.context import RunContext
+from beeai_framework.emitter import Emitter
+from beeai_framework.backend import ChatModel, ChatModelParameters
+from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
+from pydantic import BaseModel, Field
+from typing import Any
+
+class CalculatorInput(BaseModel):
+    """Input model for basic mathematical calculations."""
+    expression: str = Field(description="Mathematical expression using +, -, *, / (e.g., '10 + 5', '20-8', '4*6', '15/3')")
+
+class SimpleCalculatorTool(Tool[CalculatorInput, ToolRunOptions, StringToolOutput]):
+    
