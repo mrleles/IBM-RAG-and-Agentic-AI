@@ -167,3 +167,15 @@ human.initiate_chat(
     recipient=triage_bot,
     message=initial_prompt,
 )
+
+# Multi Agente with GroupChat
+from autogen import ConversableAgent, GroupChat, GroupChatManager
+
+llm_config = {
+    "config_list": [
+        {
+            "model": "gpt-4o-mini"
+        }
+    ]
+}
+
