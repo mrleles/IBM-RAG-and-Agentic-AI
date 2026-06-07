@@ -168,7 +168,7 @@ human.initiate_chat(
     message=initial_prompt,
 )
 
-# Multi Agente with GroupChat
+# Multi Agent with GroupChat
 from autogen import ConversableAgent, GroupChat, GroupChatManager
 
 llm_config = {
@@ -179,3 +179,121 @@ llm_config = {
     ]
 }
 
+lesson_planner = ConversableAgent(
+    name="planner_agent",
+    system_message="Create a short lesson plan for 4th graders.",
+    description="Makes lesson plans.",
+    llm_config=llm_config
+)
+
+lesson_reviewer = ConversableAgent(
+    name="reviewer_agent",
+    system_message="Review a plan and suggest up to 3 brief edits.",
+    description="Reviews lesson plans and suggests edits.",
+    llm_config=llm_config
+)
+
+teacher = ConversableAgent(
+    name="teacher_agent",
+    system_message="Suggest a topic and reply DONE when satisfied.",
+    llm_config=llm_config,
+    is_termination_msg=lambda x: "DONE" in (x.get("content", "") or "").upper()
+)
+
+groupchat = GroupChat(
+    agents=[teacher, lesson_planner, lesson_reviewer],
+    speaker_selection_method="auto"
+)
+
+manager = GroupChatManager(
+    name="group_manager",
+    groupchat=groupchat,
+    llm_config=llm_config
+)
+
+teacher.initiate_chat(
+    recipient=manager,
+    message="Make a simple lesson about the moon.",
+    max_turns=6,
+    summary_method="reflection_with_llm"
+)
+
+from autogen import ConversableAgent, register_function
+from typing import Annotated
+
+llm_config = {
+    "config_list": [
+        {
+            "model": "gpt-4o-mini"
+        }
+    ]
+}
+
+def is_prime(n: Annotated[int, "Positive integer"]) -> str:
+    if n < 2:
+        return "No"
+    for i in range(2, int(n**0.5) + 1):
+        if n % i ==0:
+            return "No"
+    return "Yes"
+
+math_asker = ConversableAgent(
+    name="math_asker",
+    system_message="Ask whether a number is prime.",
+    llm_config=llm_config
+)
+
+math_checker = ConversableAgent(
+    name="math_checker",
+    human_input_mode="NEVER",
+    llm_config=llm_config
+)
+
+register_function(
+    is_prime,
+    caller=math_asker,
+    executor=math_checker,
+    description="Check if a number is prime. Returns Yes or No."
+)
+
+math_checker.initiate_chat(
+    recipient=math_asker,
+    message="Is 72 a prime number?",
+    max_turns=2
+)
+
+from pydantic import BaseModel
+from autogen import ConversableAgent
+
+class TicketSummary(BaseModel):
+    customer_name: str
+    issue_type: str
+    urgency_level: str
+    recommended_action: str
+
+llm_config = {
+    "config_list": [
+        {
+            "model": "gpt-4o-mini"
+        }
+    ],
+    "response_format": TicketSummary
+}
+
+support_agent = ConversableAgent(
+    name="support_agent",
+    system_message=(
+        "You are a support assistant. Summarize a customer ticket using:"
+        "\n- customer_name"
+        "\n- issue_type (e.g. login issue, billing problem, bug report)"
+        "\n- urgency_level (Low, Medium, High)"
+        "\n- recommended_action"
+    ),
+    llm_config=llm_config
+)
+
+support_agent.initiate_chat(
+    recipient=support_agent,
+    message="Ticket: John Doe is unable to reset his password and has an important meeting in 30 minutes.",
+    max_turns=1
+)
