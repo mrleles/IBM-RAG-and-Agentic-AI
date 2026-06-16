@@ -5,7 +5,7 @@ sys.exit("Some message")
 
 print("This is an error message", file=sys.stderr)
 
-from fastcpm import Client
+from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport, StdioTransport
 
 # STDIO Transport
@@ -39,3 +39,13 @@ async with stdio_client as client:
         "tokens": 5000
     })
     print(docs.content[0].text[:1000])
+
+# HTTP
+import requests
+
+url = "www.https://ibm.com"
+r = requests.get(r)
+
+print(r.status_code)
+print(r.request.header)
+print(r.request.body)
