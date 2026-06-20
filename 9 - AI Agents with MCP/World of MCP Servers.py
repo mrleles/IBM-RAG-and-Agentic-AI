@@ -158,3 +158,28 @@ input_schema = tool.inputSchema
 output_schema = tool.outputSchema
 
 # Resources
+async def call_resource(name):
+    async with client:
+        result = await client.read_resource(f"file:///endpoint/{name}")
+        return result
+
+response = await call_resource("README.txt")
+resource = response[0]
+
+print(f"uri: {resource.uri}")
+print(f"mimeType: {resource.mimeType}")
+print(f"meta: {resource.meta}")
+print(f"text: {resource.text}")
+
+# Prompts
+async def call_prompt(code):
+    async with client:
+        result = await client.get_prompt("review_code", {"code": code})
+        return result
+
+response = await call_prompt("code to be reviewed")
+message = response.messages[0]
+print(f"Prompt Role: {message.role}")
+print(f"Prompt Content: {message.content.text}")
+
+# HTTP Transport MCP Servers
