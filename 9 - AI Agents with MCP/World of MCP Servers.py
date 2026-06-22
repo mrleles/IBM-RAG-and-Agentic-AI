@@ -183,3 +183,68 @@ print(f"Prompt Role: {message.role}")
 print(f"Prompt Content: {message.content.text}")
 
 # HTTP Transport MCP Servers
+f"Port {PORT} is available: {not test_port()}" # just for JupyterLab
+
+asyncio.create_task(mcp.run_http_async(port=PORT)) # if outside JupiterLab use: mcp.run_http_async(port=PORT)
+
+from fastmcp.client.transports import StdioTransport, StreamableHttpTransport
+transport_http = StreamableHttpTransport(
+    url=f"http://127.0.0.1:{PORT}/mcp"
+)
+
+http_client = Client(transport_http)
+
+async def test_client_http(client: client, a: int, b: int) -> int:
+    async with client:
+        result = await client.call_tool("add", {"a": a, "b": b})
+        return result
+
+response = await test_client_http(http_client, 4, 5)
+print(response[0].text)
+
+# LangChain Tools with HTTP MCP Servers
+from langchain_mcp_adapters.tool import load_mcp_tools
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+from mcp import ClientSession
+llm = "openai:gpt-5-nano"
+
+from mcp.client.streamable_http import streamablehttp_client
+async with streamablehttp_client(f"http://127.0.0.1:{PORT}/mcp") as (read, write, _sid):
+    print_stream_info(read, write, _sid, verbose=True)
+
+async with streamablehttp_client(f"http://127.0.0.1:{PORT}/mcp") as (read, write, _sid):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+
+        tools = await load_mcp_tools(session)
+
+        agent = create_react_agent(
+            model=llm,
+            tools=tools,
+        )
+        agent_response = await agent.ainvoke({"messages": "Use the add tool to add 2 and 1 and let me know if you used a tool."})
+
+        print(agent_response['messages'][-1].content)
+
+# Multiple MCP Servers
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
+
+client = MultiServerMCPClient(
+    {
+        "stdio-client": {
+            "command": "python",
+            "args": ["stdio_server.py"],
+            "transport": "stdio"
+        },
+        "http_client": {
+            "url": f"http://127.0.0.1:{PORT}/mcp",
+            "transport": "streamable_http"
+        }
+    }
+)
+
+tools = await client.get_tools()
+[tool.name for tool in tools]
