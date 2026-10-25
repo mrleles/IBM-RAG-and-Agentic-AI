@@ -157,14 +157,18 @@ def JSON_auto_repair_prompts(candidate_json_output, error_message):
 
 structured_restaurant_lists = []
 for i, restaurant_paragraph in enumerate(restaurant_list):
-    base_system_msg, base_user_prompt = restaurant_data_structure_prompt_generation(restaurant_paragraph=restaurant_paragraph)
-    candidate_json_output = safe_llm_call(system_msg=base_system_msg, prompt_txt=base_user_prompt)
+    system_msg, user_prompt = restaurant_data_structure_prompt_generation(restaurant_paragraph=restaurant_paragraph)
+    candidate_json_output = safe_llm_call(system_msg=system_msg, prompt_txt=user_prompt)
 
-    while(i < len(restaurant_list)):
+    while True:
         try:
-            candidate_json_output = Restaurant.model_validate_json(test_response)
+            Restaurant.model_validate_json(candidate_json_output)
+            break
         except ValidationError as e:
-            auto_repair_system_msg, auto_repair_prompt = JSON_auto_repair_prompts(candidate_json_output=candidate_json_output, error_message=e)
+            system_msg, user_prompt = JSON_auto_repair_prompts(candidate_json_output=candidate_json_output, error_message=e)
+            candidate_json_output = safe_llm_call(system_msg=system_msg, prompt_txt=user_prompt)
+
+    structured_restaurant_lists.append(candidate_json_output)
     if (i+1)%20 == 0:
         print(f'{i+1} out of {len(restaurant_list)} is done')
 
