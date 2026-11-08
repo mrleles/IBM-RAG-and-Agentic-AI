@@ -41,3 +41,14 @@ for key, value in recipe_data[0].items:
 
 path = 'synthetic_recipe_images/recipe1.png'
 Image.open(path)
+
+# 2 - Define the vision LLM with LLaMA
+import base64
+
+def vision_llm(system_msg, prompt_txt, image_path):
+    model_id = 'meta-llama/llama-4-maverick-17b-128e-instruct-fp8'
+    project_id = "skills-network"
+    credentials = Credentials(url="https://us-south.ml.cloud.ibm.com")
+    generate_params = {"max_tokens": 300}
+
+    return pass
