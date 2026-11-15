@@ -51,4 +51,33 @@ def vision_llm(system_msg, prompt_txt, image_path):
     credentials = Credentials(url="https://us-south.ml.cloud.ibm.com")
     generate_params = {"max_tokens": 300}
 
-    return pass
+    model = ModelInference(
+        project_id=project_id,
+        model_id=model_id,
+        credentials=credentials,
+        params=generate_params
+    )
+
+    with open(image_path, "rb") as image:
+        string_image = base64.b64encode(image.read()).decode('utf-8')
+
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": prompt_txt}
+    ]
+
+    response = model.chat(messages=messages)
+    return response
+
+# 3 - Design and Validate prompts for the vision LLM
+
+def image_caption_prompt_template(food_name):
+    image_caption_system_msg = "You are an assistant that generates useful and consistent image caption"
+    image_caption_prompt_txt = f"Describe the food {food_name}. Focus on relevant visual details, such as ingredients, cooking style, and presentation, while avoiding unnecessary or speculative information."
+
+    return image_caption_system_msg, image_caption_prompt_txt
+
+system_msg, prompt_txt = image_caption_prompt_template(recipe_data[0]['name'])
+
+response = vision_llm(system_msg, prompt_txt, path)
+print(response)
