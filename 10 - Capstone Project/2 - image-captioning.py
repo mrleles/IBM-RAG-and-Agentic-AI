@@ -81,3 +81,19 @@ system_msg, prompt_txt = image_caption_prompt_template(recipe_data[0]['name'])
 
 response = vision_llm(system_msg, prompt_txt, path)
 print(response)
+
+for i in range(len(recipe_data)):
+    if (i+1)%20 == 0:
+        print(f'{i+1} out of {len(recipe_data)} is done')
+
+    system_msg, prompt_txt = image_caption_prompt_template(recipe_data[i]['name'])
+
+    path = f'synthetic_recipe_images/recipe{i+1}.png'
+    response = vision_llm(system_msg, prompt_txt, path)
+
+    recipe_data[i]['image_description'] = response
+print('ALL DONE!')
+
+filename = 'augmented_food_recipe.json'
+with open(filename, 'w', encoding='utf-8') as f:
+    json.dump(recipe_data, f, indent=4)
