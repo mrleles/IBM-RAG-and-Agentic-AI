@@ -97,3 +97,14 @@ print('ALL DONE!')
 filename = 'augmented_food_recipe.json'
 with open(filename, 'w', encoding='utf-8') as f:
     json.dump(recipe_data, f, indent=4)
+
+# Exercise 2: Preprocess the user visit history
+
+with open('Syhthetic-User-Reviews.json', 'r') as reviews_json:
+    user_review_data = json.load(reviews_json)
+
+import ast
+import requests
+
+actual_list = ast.literal_eval(user_review_data[0]['images'])
+image_content = requests.get(actual_list[0])
